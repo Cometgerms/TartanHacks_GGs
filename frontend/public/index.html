@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TartanHacks GGs - Frontend</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 TartanHacks GGs</h1>
+            <p class="subtitle">Frontend/Backend Demo</p>
+        </header>
+
+        <main>
+            <section class="status-section">
+                <h2>Server Status</h2>
+                <div class="status-cards">
+                    <div class="status-card">
+                        <h3>Frontend</h3>
+                        <div id="frontend-status" class="status">Checking...</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Backend</h3>
+                        <div id="backend-status" class="status">Checking...</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="data-section">
+                <h2>Backend Data</h2>
+                <button id="fetch-data-btn" class="btn">Fetch Data from Backend</button>
+                <div id="data-container"></div>
+            </section>
+
+            <section class="form-section">
+                <h2>Send Data to Backend</h2>
+                <form id="data-form">
+                    <input type="text" id="name-input" placeholder="Enter name" required>
+                    <input type="text" id="message-input" placeholder="Enter message" required>
+                    <button type="submit" class="btn">Send Data</button>
+                </form>
+                <div id="response-container"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Built with Node.js (Frontend) + Python Flask (Backend)</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
