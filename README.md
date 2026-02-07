@@ -5,6 +5,13 @@ A TartanHacks project with:
 - **Frontend**: 
 - **Backend**: 
 
+## Team
+
+- Alan
+- Raymond
+- Liam
+- Zack
+
 The agent keeps a chat session, understands effect commands like `\\reverb();`, and can generate a downstream “processing code payload” you can forward to a future processing backend.
 
 ---
