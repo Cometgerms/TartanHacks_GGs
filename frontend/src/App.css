@@ -433,8 +433,9 @@ a { color: inherit; text-decoration: none; }
 
 button.button.landingBtn {
   width: auto !important;
-  min-width: 240px;
+  min-width: 500px;
   padding: 20px 40px;
+    align-self: center;
   font-size: 18px;
   display: inline-flex;
   justify-content: center;
@@ -442,6 +443,10 @@ button.button.landingBtn {
   background: white;
   color: black;
   border: none;
+}
+/* This targets the animated ring ONLY on the landing button */
+button.button.landingBtn.fxRing::after {
+  padding: 5px; /* Increase this number (e.g., 4px or 6px) to make the line thicker */
 }
 
 button.button.landingBtn:hover {
@@ -713,12 +718,15 @@ button.button.landingBtn:hover {
 }
 
 .logoImg {
-  width: 120px;
-  height: 120px;
+  position: absolute; /* This lets us place it anywhere regardless of other text */
+  top: 30px;          /* Distance from the top of the screen */
+  left: 30px;         /* Distance from the left of the screen */
+  width: 80px;        /* Slightly smaller size looks better in a corner */
+  height: 80px;
   object-fit: contain;
-  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
-  opacity: 0;
-  border-radius: 20px;
+  z-index: 10;        /* Makes sure it stays on top of the background */
+  border-radius: 12px;
+  opacity: 1;         /* Ensures it is visible */
 }
 
 /* content hidden until logo sequence completes */
@@ -836,6 +844,15 @@ button.button.landingBtn:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.24);
 }
+.buttonTiny:hover {
+  color: white !important;
+  text-decoration: none;
+}
+.buttonTiny svg {
+  display: block;
+  height: auto; /* Keeps the proportions correct */
+  width: 18px;   /* Explicitly sets the size */
+}
 
 /* Give the overall layout a touch more breathing room */
 .landingInner {
@@ -898,3 +915,37 @@ button.button.landingBtn:hover {
 .split-text {
   perspective: 400px;
 }
+
+.mosaicContainer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.mosaicTile {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    will-change: transform;
+    pointer-events: none;   /* Ensures they don't block button clicks */
+  z-index: -1;
+    left: -250px;
+}
+
+.tile1 { top: 10%; width: 220px; height: 220px; }
+.tile3 { top: 40%; width: 150px; height: 150px; opacity: 0.6; }
+.tile2 { top: 50%; width: 190px; height: 190px; }
+.tile4 { top: 75%; width: 130px; height: 130px; opacity: 0.4; }
+.tile5 { top: 15%; width: 150px; height: 150px; }
+.tile6 { top: 60%; width: 230px; height: 230px; opacity: 0.6; }
+.tile7 { top: 50%; width: 190px; height: 190px; }
+.tile8 { top: 75%; width: 130px; height: 130px; opacity: 0.4; }
+.tile9 { top: 12%; width: 160px; height: 160px; }
+.tile10 { top: 65%; width: 200px; height: 200px; opacity: 0.8; }

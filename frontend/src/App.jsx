@@ -95,7 +95,7 @@ export default function App() {
   const primaryBtnRef = useRef(null);
   const progressFillRef = useRef(null);
 
-  const MIN_PROGRESS_MS = 3500;
+  const MIN_PROGRESS_MS = 4000;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const canSubmit = !!file && (!!prompt.trim() || !!imageFile) && status !== "uploading";
@@ -103,14 +103,23 @@ export default function App() {
   const examples = useMemo(
     () => [
       "clearer voice",
-      "delete background noise",
+      "remove background noise",
       "professional mix",
       "reduce sibilance",
       "bring up the bass",
-      "make it louder (normalize)",
+      "make it louder",
     ],
     []
   );
+
+  const [progressMessage, setProgressMessage] = useState("Analyzing audio...");
+
+    const loadingPhrases = [
+      "Analyzing audio frequencies...",
+      "Applying digital signal processing...",
+      "Fine-tuning output levels...",
+      "Finalizing your edit..."
+    ];
 
   const prefersReduced =
     window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
@@ -139,6 +148,19 @@ export default function App() {
       setImageFile(null);
     }
   }
+
+  //showing progress messages//
+  useEffect(() => {
+  if (screen !== "progress") return;
+
+  let index = 0;
+  const interval = setInterval(() => {
+    index = (index + 1) % loadingPhrases.length;
+    setProgressMessage(loadingPhrases[index]);
+  }, 1000); // Change message every 1.5 seconds
+
+  return () => clearInterval(interval);
+}, [screen]);
 
   // ---------- Mouse-interactive background parallax (stable, no loop conflicts) ----------
   useEffect(() => {
@@ -182,7 +204,7 @@ export default function App() {
     };
   }, [prefersReduced]);
 
-  // ---------- Real (non-fake) progress: indeterminate while uploading ----------
+  // ---------- Real progress indeterminate while uploading ----------
   useEffect(() => {
     // No need for percentage fake progress.
     // Keep a minimal timer as a safety to avoid stuck UI if needed later.
@@ -198,9 +220,11 @@ export default function App() {
 
   // ---------- Background FX (runs once) ----------
   useEffect(() => {
-    if (bgStartedRef.current) return;
+  if (prefersReduced) return;
+
+  // 1. Static Background Elements (Orbs/Grid) - Only start these once
+  if (!bgStartedRef.current) {
     bgStartedRef.current = true;
-    if (prefersReduced) return;
 
     const orb1 = document.querySelector(".bgOrb.orb1");
     const orb2 = document.querySelector(".bgOrb.orb2");
@@ -242,7 +266,26 @@ export default function App() {
         loop: true,
       });
     }
-  }, [prefersReduced]);
+  }
+
+  // 2. Mosaic Tiles - Restart/Ensure movement whenever the screen changes
+  const mosaicTargets = rootRef.current?.querySelectorAll(".mosaicTile");
+
+  if (mosaicTargets && mosaicTargets.length > 0) {
+    // Stop any existing animation on these specific tiles before starting a new one
+    anime.remove(mosaicTargets);
+
+    anime({
+      targets: mosaicTargets,
+      translateX: [0, window.innerWidth + 500],
+      duration: () => anime.random(5000, 20000),
+      delay: anime.stagger(2500),
+      easing: 'linear',
+      loop: true
+    });
+  }
+  // Adding 'screen' here ensures the tiles start moving again when you go back to landing
+}, [prefersReduced, screen]);
 
 // ---------- Screen entrance animation ----------
 useEffect(() => {
@@ -294,7 +337,7 @@ useEffect(() => {
       ],
       rotate: {
         value: [-15, 0], // Subtle rotation
-        duration: 1000,
+        duration: 500,
         easing: 'easeOutElastic(1, .8)'
       },
       delay: anime.stagger(40),
@@ -321,6 +364,7 @@ useEffect(() => {
       duration: 600,
     }, "-=500");
   }
+
 
   // 5. Cards
   if (cards.length) {
@@ -442,22 +486,28 @@ useEffect(() => {
   }, []);
 
   // Removed complex logo timeline for cleaner entry
-  useEffect(() => {
-    if (screen !== "landing") return;
-    const root = rootRef.current;
-    if (!root) return;
+  // Landing CTA visibility safeguard
+useEffect(() => {
+  if (screen !== "landing") return;
+  const root = rootRef.current;
+  if (!root) return;
 
-    // Optional: simple fade-in if needed, but CSS handles most now
-    const content = root.querySelector(".landingContent");
-    if (content) {
-      anime({
-        targets: content,
-        opacity: [0, 1],
-        duration: 800,
-        easing: "easeOutQuad"
-      });
+  const btn = root.querySelector(".landingBtn");
+  if (!btn) return;
+
+  const ensureVisible = () => {
+    const cs = window.getComputedStyle(btn);
+    if (cs.opacity === "0") {
+      btn.style.opacity = "1";
+      btn.style.transform = "none";
     }
-  }, [screen]);
+  };
+
+  requestAnimationFrame(ensureVisible);
+  const id = window.setTimeout(ensureVisible, 900);
+  return () => window.clearTimeout(id);
+}, [screen]);
+
 
   // ---------- Interaction helpers ----------
   function pressPop(e) {
@@ -473,45 +523,71 @@ useEffect(() => {
   }
 
   function hoverGlow(e) {
-    const t = e?.currentTarget;
-    if (!t || prefersReduced) return;
-    anime.remove(t);
-    anime({
-      targets: t,
-      boxShadow: [
-        "0 0 0 rgba(0,0,0,0)",
-        "0 18px 60px rgba(130,120,255,0.16)",
-      ],
-      duration: 260,
-      easing: "easeOutQuad",
-    });
-  }
+  const t = e?.currentTarget;
+  if (!t || prefersReduced) return;
+
+  // Important: don't let hover cancel the "enter" animation while the button is still at opacity 0.
+  // If the cursor is already over the CTA when it mounts, React can fire onMouseEnter immediately.
+  anime.remove(t);
+  anime.set(t, { opacity: 1, translateY: 0, scale: 1 });
+
+  anime({
+    targets: t,
+    boxShadow: [
+      "0 0 0 rgba(0,0,0,0)",
+      "0 18px 60px rgba(130,120,255,0.16)",
+    ],
+    duration: 260,
+    easing: "easeOutQuad",
+  });
+}
+
 
   function hoverGlowOut(e) {
-    const t = e?.currentTarget;
-    if (!t || prefersReduced) return;
-    anime.remove(t);
-    anime({
-      targets: t,
-      boxShadow: [
-        "0 18px 60px rgba(130,120,255,0.16)",
-        "0 0 0 rgba(0,0,0,0)",
-      ],
-      duration: 260,
-      easing: "easeOutQuad",
-    });
-  }
+  const t = e?.currentTarget;
+  if (!t || prefersReduced) return;
+
+  // Same safety as hoverGlow: make sure CTA is visible even if we interrupt the entrance timeline.
+  anime.remove(t);
+  anime.set(t, { opacity: 1, translateY: 0, scale: 1 });
+
+  anime({
+    targets: t,
+    boxShadow: [
+      "0 18px 60px rgba(130,120,255,0.16)",
+      "0 0 0 rgba(0,0,0,0)",
+    ],
+    duration: 260,
+    easing: "easeOutQuad",
+  });
+}
+
 
   // ---------- Background FX markup ----------
   const BackgroundFX = (
-    <div className="bgFX" aria-hidden="true">
-      <div className="cursorFollower" />
-      <div className="bgOrb orb1" />
-      <div className="bgOrb orb2" />
-      <div className="bgGrid" />
-      <div className="bgNoise" />
+  <div className="bgFX" aria-hidden="true">
+    <div className="cursorFollower" />
+
+    {/* New Mosaic Layer */}
+    <div className="mosaicContainer">
+      <div className="mosaicTile tile1" />
+      <div className="mosaicTile tile2" />
+      <div className="mosaicTile tile3" />
+      <div className="mosaicTile tile4" />
+        <div className="mosaicTile tile5" />
+        <div className="mosaicTile tile6" />
+        <div className="mosaicTile tile7" />
+        <div className="mosaicTile tile8" />
+        <div className="mosaicTile tile9" />
+        <div className="mosaicTile tile10" />
     </div>
-  );
+
+    <div className="bgOrb orb1" />
+    <div className="bgOrb orb2" />
+    <div className="bgGrid" />
+    <div className="bgNoise" />
+  </div>
+);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -598,8 +674,9 @@ useEffect(() => {
         {BackgroundFX}
         <div className="screen anim-screen landingContent">
           <div className="landingWrap">
+              <img className="logoImg" src={logoUrl} alt="Scotty Logo" />
             <div className="landingInner">
-              <img className="logoImg" src={logoUrl} alt="Scotty Logo" style={{ opacity: 1, position: 'relative', width: 140, height: 140, marginBottom: -10 }} />
+
 
               {/* Enhanced animated title */}
               <SplitText
@@ -754,7 +831,7 @@ useEffect(() => {
                            </div>
                         ) : (
                            <span className="fileMeta" style={{ fontSize: 13, fontStyle: 'italic', opacity: 0.7 }}>
-                             e.g. "Cathedral interior"
+                             e.g. "Photo of a concert hall"
                            </span>
                         )}
                       </div>
@@ -764,18 +841,16 @@ useEffect(() => {
 
                 {/* RIGHT COL: Prompt & Actions */}
                 <div className="card anim-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', animationDelay: '0.15s' }}>
-                  <div className="cardTitle">Instructions</div>
+                  <div className="cardTitle">Text Input</div>
 
                   <div className="form" style={{ height: '100%' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                      <label className="label">
-                        What should we do?
-                      </label>
+
                       <textarea
                         className="textarea"
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
-                        placeholder='Examples: "Make it sound like this photo", "remove noise", "add reverb"'
+                        placeholder='Examples: "remove background noise", "make it sound like this photo", "add reverb"'
                         style={{ flex: 1, minHeight: 180, marginTop: 8 }}
                       />
                     </div>
@@ -805,7 +880,7 @@ useEffect(() => {
                         onMouseEnter={hoverGlow}
                         onMouseLeave={hoverGlowOut}
                       >
-                        Process Request
+                        Process audio
                       </button>
                     </div>
                   </div>
@@ -829,10 +904,8 @@ useEffect(() => {
               <h2 className="heroTitle anim-heroTitle" style={{ marginBottom: 8 }}>
                 Processing your audio…
               </h2>
-
-              <p className="heroSub anim-heroSub" style={{ marginBottom: 18 }}>
-                {/* No detailed fake steps; just a clean waiting message */}
-                Please wait.
+              <p className="heroSub anim-heroSub" style={{ marginBottom: 18, fontWeight: '500', color: 'var(--accent2)' }}>
+                  {progressMessage}
               </p>
 
               <div className={`card anim-card progressCard fxScan ${status === "uploading" ? "loadingGlow" : ""}`}>
@@ -856,7 +929,7 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <p className="hint">(Waiting for the backend to finish processing.)</p>
+                <p className="hint">(Thank you for your patience)</p>
               </div>
             </div>
           </div>
@@ -897,8 +970,29 @@ useEffect(() => {
                         <>
                           <audio controls src={outputUrl} className="player" />
                           <div className="centerRow" style={{ marginTop: 14 }}>
-                            <a className="buttonTiny fxRing" href={outputUrl} download="edited-audio.wav">
+                            <a
+                              className="buttonTiny fxRing"
+                              href={outputUrl}
+                              download="edited-audio.wav"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}
+                            >
                               Download
+                              {/* The SVG is now after the text */}
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={{ flexShrink: 0 }} // This prevents the "distorted/squished" look
+                              >
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
                             </a>
                           </div>
                         </>
