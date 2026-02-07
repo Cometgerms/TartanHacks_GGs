@@ -75,6 +75,7 @@ export default function App() {
   const [screen, setScreen] = useState("landing"); // landing | input | progress | result
   const [prompt, setPrompt] = useState("");
   const [file, setFile] = useState(null);
+  const [imageFile, setImageFile] = useState(null); // New state for image
   const [sessionId, setSessionId] = useState(null);
 
   const [status, setStatus] = useState("idle"); // idle | uploading | done | error
@@ -97,7 +98,7 @@ export default function App() {
   const MIN_PROGRESS_MS = 3500;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const canSubmit = !!file && !!prompt.trim() && status !== "uploading";
+  const canSubmit = !!file && (!!prompt.trim() || !!imageFile) && status !== "uploading";
 
   const examples = useMemo(
     () => [
@@ -135,6 +136,7 @@ export default function App() {
     if (clearInputs) {
       setPrompt("");
       setFile(null);
+      setImageFile(null);
     }
   }
 
@@ -529,6 +531,7 @@ useEffect(() => {
 
       const form = new FormData();
       form.append("audio", file);
+      if (imageFile) form.append("image", imageFile);
       form.append("text", prompt);
       form.append("session_id", sessionId || `session_${Date.now()}`);
 
@@ -636,39 +639,38 @@ useEffect(() => {
         <div className="screen anim-screen">
           <div className="editorPage">
             <div className="editorWrap">
-              <div className="hero heroCompact">
+              <div className="hero heroCompact" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <SplitText
-                  text="Upload audio and describe the edit."
+                  text="Describe your edit."
                   className="heroTitle"
+                  style={{ fontSize: '3rem', margin: 0 }}
                 />
+
+                <button
+                  type="button"
+                  className="chip fxRing"
+                  onMouseDown={pressPop}
+                  onMouseEnter={hoverGlow}
+                  onMouseLeave={hoverGlowOut}
+                  onClick={() => {
+                    resetJob({ clearInputs: false });
+                    setScreen("landing");
+                  }}
+                  style={{ margin: 0 }}
+                >
+                  ← Back
+                </button>
               </div>
 
-              <div className="grid oneCol">
-                <div className="card anim-card">
-                  <div className="dropRow" style={{ marginBottom: 10 }}>
-                    <div className="cardTitle" style={{ margin: 0 }}>
-                      Upload audio file
-                    </div>
+              <form className="editorGrid" onSubmit={handleSubmit}>
+                {/* LEFT COL: Files */}
+                <div className="card anim-card" style={{ height: '100%' }}>
+                  <div className="cardTitle">Source Files</div>
 
-                    <button
-                      type="button"
-                      className="chip fxRing"
-                      onMouseDown={pressPop}
-                      onMouseEnter={hoverGlow}
-                      onMouseLeave={hoverGlowOut}
-                      onClick={() => {
-                        resetJob({ clearInputs: false });
-                        setScreen("landing");
-                      }}
-                    >
-                      ← Back
-                    </button>
-                  </div>
-
-                  <form className="form" onSubmit={handleSubmit}>
+                  <div className="form">
                     <div className="drop">
-                      <div className="fileName">
-                        {file ? `Selected: ${file.name}` : "Upload an audio file (mp3/wav/m4a…)"}
+                      <div className="dropRow">
+                         <div className="fileName">Audio File (Required)</div>
                       </div>
 
                       {/* BIG “physical file” card drops in here */}
@@ -706,15 +708,77 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <label className="label">
-                      Edit prompt
+                    {/* Image Upload for Multimodal */}
+                    <div className="drop" style={{ borderStyle: 'dotted', borderColor: 'rgba(255,255,255,0.15)' }}>
+                      <div className="dropRow">
+                        <div className="fileName" style={{ fontSize: 13 }}>
+                          Reference Image (Optional)
+                        </div>
+                        {imageFile && (
+                          <button
+                            type="button"
+                            className="buttonTiny"
+                            onClick={() => setImageFile(null)}
+                            style={{ padding: '4px 8px', fontSize: 10 }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="filePicker" style={{ marginTop: 12 }}>
+                         <input
+                          id="imageFile"
+                          className="fileHidden"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                        />
+                         <label
+                          htmlFor="imageFile"
+                          className="fileBtn fxRing"
+                          style={{ fontSize: 13, padding: '6px 14px' }}
+                          onMouseDown={pressPop}
+                        >
+                          {imageFile ? "Change Image" : "Add Photo"}
+                        </label>
+
+                        {imageFile ? (
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                             <img
+                               src={URL.createObjectURL(imageFile)}
+                               alt="preview"
+                               style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.2)' }}
+                             />
+                             <span className="fileMeta" style={{ fontSize: 12 }}>{imageFile.name}</span>
+                           </div>
+                        ) : (
+                           <span className="fileMeta" style={{ fontSize: 13, fontStyle: 'italic', opacity: 0.7 }}>
+                             e.g. "Cathedral interior"
+                           </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COL: Prompt & Actions */}
+                <div className="card anim-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', animationDelay: '0.15s' }}>
+                  <div className="cardTitle">Instructions</div>
+
+                  <div className="form" style={{ height: '100%' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                      <label className="label">
+                        What should we do?
+                      </label>
                       <textarea
                         className="textarea"
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
-                        placeholder='Examples: "clearer voice", "delete background noise", "professional mix"'
+                        placeholder='Examples: "Make it sound like this photo", "remove noise", "add reverb"'
+                        style={{ flex: 1, minHeight: 180, marginTop: 8 }}
                       />
-                    </label>
+                    </div>
 
                     <div className="chips">
                       {examples.map((ex) => (
@@ -732,7 +796,7 @@ useEffect(() => {
                       ))}
                     </div>
 
-                    <div className="actions">
+                    <div className="actions" style={{ marginTop: 'auto', paddingTop: 16 }}>
                       <button
                         ref={primaryBtnRef}
                         className={`button fxRing ${canSubmit ? "buttonReady" : ""}`}
@@ -741,14 +805,12 @@ useEffect(() => {
                         onMouseEnter={hoverGlow}
                         onMouseLeave={hoverGlowOut}
                       >
-                        Process audio
+                        Process Request
                       </button>
                     </div>
-
-                    <p className="hint">Tip: loosely describe what you want — we’ll handle the details.</p>
-                  </form>
+                  </div>
                 </div>
-              </div>
+              </form>
             </div>
           </div>
         </div>

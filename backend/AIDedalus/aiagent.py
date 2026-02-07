@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Tuple
 from typing import Any
+import base64
 
 from dotenv import load_dotenv
 
@@ -48,7 +49,8 @@ AGENT_SYSTEM_PROMPT = os.getenv(
     (
         "You are an AI audio-processing assistant specialized in audio effects. "
         "Be concise, friendly, and professional. "
-        "Your job is to directly analyze user requests and generate audio processing code. "
+        "Your job is to directly analyze user requests (and optional images) and generate audio processing code. "
+        "If an image is provided, analyze the visual environment (size, materials, crowd density) to infer acoustic properties (reverb, background noise, EQ). "
         "Do NOT ask follow-up questions or chat - immediately provide concrete code. "
         "Use clearly audible but safe settings; prefer EQ moves between -6 and +7 dB unless the user asks for extreme effects. "
         "Output JSON only. No comments."
@@ -69,7 +71,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 @dataclass
 class ChatMessage:
     role: str  # "user" | "assistant" | "system"
-    content: str
+    content: Any  # str or list of dicts for multimodal
 
 
 @dataclass
@@ -91,7 +93,9 @@ def _secure_filename(name: str) -> str:
 
 def save_file(file) -> str:
     """Save uploaded file and return the full path."""
-    filename = _secure_filename(getattr(file, "filename", "audio.wav") or "audio.wav")
+    # Ensure checking against a safe fallback name if filename is missing
+    fname = getattr(file, "filename", "") or "upload.bin"
+    filename = _secure_filename(fname)
     unique = f"{uuid.uuid4().hex}_{filename}"
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique)
 
@@ -103,6 +107,21 @@ def save_file(file) -> str:
     except Exception as e:
         print(f"[File Upload] ERROR saving file: {e}")
         raise
+
+
+def _encode_image_to_base64(image_path: str) -> str:
+    """Read an image file and encode it to base64."""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
+
+def _is_valid_image_file(path: str) -> bool:
+    """Return True if the file looks like a valid image."""
+    if not os.path.exists(path):
+        return False
+    valid_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+    _, ext = os.path.splitext(path.lower())
+    return ext in valid_extensions
 
 
 def _upload_debug_snapshot() -> Dict[str, Any]:
@@ -119,6 +138,13 @@ def _upload_debug_snapshot() -> Dict[str, Any]:
             "filename": getattr(audio, "filename", None),
             "content_type": getattr(audio, "content_type", None),
             "mimetype": getattr(audio, "mimetype", None),
+        }
+
+    image = request.files.get("image")
+    if image is not None:
+        meta["image"] = {
+            "filename": getattr(image, "filename", None),
+            "content_type": getattr(image, "content_type", None),
         }
     return meta
 
@@ -279,26 +305,60 @@ def _keywords_fallback(user_text: str) -> List[str]:
     return found
 
 
-async def infer_effects_from_text(session_id: str, user_text: str) -> List[str]:
-    """Use Dedalus to infer which SUPPORTED_EFFECTS to apply from natural language.
+async def infer_effects_from_text(session_id: str, user_text: str, image_path: Optional[str] = None) -> List[str]:
+    """Use Dedalus to infer which SUPPORTED_EFFECTS to apply from natural language (and optional image).
 
     Now requests plugin variants when possible. Returns list items of the form
     'effect:plugin' or 'effect'. If Dedalus is unavailable or fails, fall back to
     deterministic keyword heuristics or backslash command parsing.
     """
     prompt = (
-        "Infer which effects to apply from this user request. "
+        "Infer which effects to apply from this user request (and optional image). "
+        "If an image is provided, YOU MUST analyze the visual environment (size, surfaces) to infer acoustic properties "
+        "(e.g., large stone church -> reverb:hall; small room -> reverb:room; radio studio -> eq + compressor). "
         "Return ONLY a JSON object like {\"effects\": [ {\"name\":\"reverb\", \"plugin\":\"plate\"}, ... ] }. "
         "Each effect name must be chosen only from this list: "
         + ", ".join(sorted(SUPPORTED_EFFECTS))
         + ". "
         "Plugin variants are optional but preferred when the model can reasonably pick one. "
+        "If the user request is empty but an image is present, deduce effects solely from the image."
         "If none apply, return {\"effects\": []}."
     )
 
+    # If user provided image but no text, give the AI a nudge to look at the image
+    final_user_text = user_text
+    if image_path and not final_user_text.strip():
+        final_user_text = "Make the audio sound like it belongs in this image."
+
+    user_content: Any = final_user_text
+
+    if image_path and _is_valid_image_file(image_path):
+        try:
+            base64_image = _encode_image_to_base64(image_path)
+            # Determine mime type from extension
+            _, ext = os.path.splitext(image_path.lower())
+            mime_type = "image/jpeg" # default
+            if ext == '.png': mime_type = "image/png"
+            elif ext == '.webp': mime_type = "image/webp"
+            elif ext == '.gif': mime_type = "image/gif"
+
+            user_content = [
+                {"type": "text", "text": final_user_text},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{base64_image}"
+                    }
+                }
+            ]
+        except Exception as e:
+            print(f"[infer_effects] Error encoding image: {e}")
+            # Fallback to just text if image processing fails
+            user_content = final_user_text
+
     msgs: List[ChatMessage] = [
         ChatMessage(role="system", content=prompt),
-        ChatMessage(role="user", content=user_text),
+        ChatMessage(role="user", content=user_content),
     ]
 
     # If Dedalus client is not available or API key missing, skip the model call and use fallback
@@ -693,29 +753,40 @@ def chat():
 
 @app.route("/aiagent", methods=["POST"])
 def ai_agent():
-    """Agent endpoint: accepts text + optional audio.
+    """Agent endpoint: accepts text + optional audio + optional image.
 
     - If no audio is provided and user requests audio modification, ask for audio.
     - If user provided backslash commands, parse effects and run AudioEngine locally.
+    - If image is provided, use it for effect inference.
     """
     session_id = get_or_create_session(request.form.get("session_id"))
     text_input = (request.form.get("text") or "").strip()
     audio_file = request.files.get("audio")
+    image_file = request.files.get("image")
+
     upload_debug = _upload_debug_snapshot() if DEBUG_UPLOADS else None
 
-    if not text_input:
-        resp: Dict[str, Any] = {"error": "Text input is required.", "session_id": session_id}
-        if upload_debug is not None:
-            resp["debug_uploads"] = upload_debug
-        return jsonify(resp), 400
+    if not text_input and not image_file:
+        # Allow text OR image (if user just uploads a pic and says "make it sound like this" logic handled later)
+        # But for now we enforce text presence for existing logic, or at least some prompt.
+        if not text_input:
+             resp: Dict[str, Any] = {"error": "Text input is required.", "session_id": session_id}
+             if upload_debug is not None:
+                 resp["debug_uploads"] = upload_debug
+             return jsonify(resp), 400
 
     # Track chat
     _SESSIONS[session_id].append(ChatMessage(role="user", content=text_input))
 
-    # Save upload (if present)
+    # Save uploads
     audio_path: Optional[str] = None
     if audio_file:
         audio_path = save_file(audio_file)
+
+    image_path: Optional[str] = None
+    if image_file:
+        image_path = save_file(image_file)
+        print(f"[AI Agent] Image uploaded: {image_path}")
 
     # If user didn't upload audio, ask them to
     if not audio_path:
@@ -769,7 +840,7 @@ def ai_agent():
 
     # Infer effect categories first (Dedalus), then generate a parameterized AudioEngine plan.
     try:
-        inferred_effects = asyncio.run(infer_effects_from_text(session_id, text_input))
+        inferred_effects = asyncio.run(infer_effects_from_text(session_id, text_input, image_path=image_path))
     except Exception as e:
         inferred_effects = []
         print(f"[AI Agent] infer_effects_from_text failed: {e}")
