@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
 > **A cutting-edge audio processing agent powered by multimodal AI.**  
-> *Built for TartanHacks 2025*
+> *Built for TartanHacks 2026*
 
 ---
 
