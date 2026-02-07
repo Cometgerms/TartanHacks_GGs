@@ -5,41 +5,69 @@ import logoUrl from "./assets/Scotty.jpg";
 
 
 function AudioFileIcon() {
-  // Simple inline SVG "audio file" icon
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const paths = ref.current.querySelectorAll("path");
+
+    // "Drawable" effect: strokeDashoffset animation
+    anime.set(paths, { strokeDashoffset: anime.setDashoffset, opacity: 1 });
+
+    anime({
+      targets: paths,
+      strokeDashoffset: [anime.setDashoffset, 0],
+      easing: "easeInOutSine",
+      duration: 1500,
+      delay: anime.stagger(150),
+      loop: false
+    });
+  }, []);
+
   return (
     <svg
+      ref={ref}
       className="audioIcon"
-      viewBox="0 0 64 64"
+      viewBox="0 0 24 24"
       fill="none"
-      aria-hidden="true"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <path
-        d="M18 8h18l10 10v38a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z"
-        stroke="rgba(255,255,255,0.55)"
-        strokeWidth="2"
-      />
-      <path
-        d="M36 8v10h10"
-        stroke="rgba(255,255,255,0.55)"
-        strokeWidth="2"
-      />
-      <path
-        d="M26 43c0 2.2-2 4-4.5 4S17 45.2 17 43s2-4 4.5-4S26 40.8 26 43Z"
-        stroke="rgba(255,255,255,0.65)"
-        strokeWidth="2"
-      />
-      <path
-        d="M26 43V26l20-4v16"
-        stroke="rgba(255,255,255,0.65)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M46 38c0 2.2-2 4-4.5 4S37 40.2 37 38s2-4 4.5-4S46 35.8 46 38Z"
-        stroke="rgba(255,255,255,0.65)"
-        strokeWidth="2"
-      />
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke="rgba(255,255,255,0.3)" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" stroke="rgba(255,255,255,0.3)" />
+      {/* Colored paths for more fun */}
+      <path d="M10 13v4" stroke="var(--accent2)" strokeWidth="2" />
+      <path d="M14 12v6" stroke="var(--accent1)" strokeWidth="2" />
+      <path d="M6 14v2" stroke="var(--accent3)" strokeWidth="2" />
+      <path d="M18 15v-1" stroke="var(--accent3)" strokeWidth="2" />
     </svg>
+  );
+}
+
+// Split text into spans for staggered animation
+function SplitText({ text, className = "", style = {} }) {
+  return (
+    <div className={`split-text ${className}`} style={{ ...style, display: 'inline-block' }} aria-label={text}>
+      {text.split("").map((char, i) => (
+        <span
+          key={i}
+          className="letter"
+          style={{
+            display: "inline-block",
+            whiteSpace: "pre",
+            willChange: "transform, opacity",
+            // Fix for visibility issues
+            color: 'inherit',
+            position: 'relative',
+            zIndex: 1
+          }}
+        >
+          {char}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -54,12 +82,6 @@ export default function App() {
   const [outputUrl, setOutputUrl] = useState(null);
   const [error, setError] = useState("");
   const [agentReply, setAgentReply] = useState("");
-
-  const fileInputRef = useRef(null);
-
-  // progress UI
-  const [progress, setProgress] = useState(0);
-  const [stepText, setStepText] = useState("");
 
   const progressTimerRef = useRef(null);
   const abortRef = useRef(null);
@@ -108,8 +130,7 @@ export default function App() {
     setMessage("");
     setOutputUrl(null);
     setError("");
-    setProgress(0);
-    setStepText("");
+    // removed setStepText
 
     if (clearInputs) {
       setPrompt("");
@@ -117,31 +138,61 @@ export default function App() {
     }
   }
 
-  function startFakeProgress() {
-    stopProgressTimer();
+  // ---------- Mouse-interactive background parallax (stable, no loop conflicts) ----------
+  useEffect(() => {
+    if (prefersReduced) return;
 
-    const steps = [
-      { at: 8, text: "Uploading audio…" },
-      { at: 18, text: "Analyzing signal…" },
-      { at: 35, text: "Deleting background noise…" },
-      { at: 55, text: "Adding compression…" },
-      { at: 70, text: "Adding reverb…" },
-      { at: 85, text: "Normalizing loudness…" },
-      { at: 95, text: "Exporting edited audio…" },
-    ];
+    const fx = document.querySelector(".bgFX");
+    if (!fx) return;
 
-    let p = 2;
-    setProgress(2);
-    setStepText("Starting…");
+    let raf = 0;
 
-    progressTimerRef.current = setInterval(() => {
-      p = Math.min(98, p + 2);
-      setProgress(p);
+    const onMove = (ev) => {
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const x = (ev.clientX / w - 0.5) * 2; // -1..1
+      const y = (ev.clientY / h - 0.5) * 2;
 
-      const current = [...steps].reverse().find((s) => p >= s.at);
-      if (current) setStepText(current.text);
-    }, 180);
-  }
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+
+        // Track cursor for follower effect
+        document.body.style.setProperty("--cursor-x", `${ev.clientX}px`);
+        document.body.style.setProperty("--cursor-y", `${ev.clientY}px`);
+
+        // IMPORTANT: set unitless CSS vars; CSS will multiply by px.
+        anime.remove(fx);
+        anime({
+          targets: fx,
+          "--mx": x,
+          "--my": y,
+          duration: 420,
+          easing: "easeOutQuad",
+        });
+      });
+    };
+
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [prefersReduced]);
+
+  // ---------- Real (non-fake) progress: indeterminate while uploading ----------
+  useEffect(() => {
+    // No need for percentage fake progress.
+    // Keep a minimal timer as a safety to avoid stuck UI if needed later.
+    if (status !== "uploading") {
+      stopProgressTimer();
+      return;
+    }
+
+    return () => {
+      stopProgressTimer();
+    };
+  }, [status]);
 
   // ---------- Background FX (runs once) ----------
   useEffect(() => {
@@ -196,79 +247,91 @@ useEffect(() => {
   const root = rootRef.current;
   if (!root || prefersReduced) return;
 
-  // only stop animations inside this screen
   const screenEl = root.querySelector(".anim-screen");
   const cards = Array.from(root.querySelectorAll(".anim-card"));
-
-  const heroTitle = Array.from(root.querySelectorAll(".anim-heroTitle"));
+  const letters = Array.from(root.querySelectorAll(".letter"));
   const heroSub = Array.from(root.querySelectorAll(".anim-heroSub"));
-  const cta = Array.from(root.querySelectorAll(".anim-cta")); // <-- CTA separate
+  const cta = Array.from(root.querySelectorAll(".anim-cta"));
 
-  const targets = [screenEl, ...cards, ...heroTitle, ...heroSub, ...cta].filter(Boolean);
+  const targets = [screenEl, ...cards, ...letters, ...heroSub, ...cta].filter(Boolean);
 
+  // Stop any running animations on these elements
   anime.remove(targets);
 
-  // Clear leftover inline styles that can get stuck
-  targets.forEach((el) => {
-    el.style.removeProperty("transform");
-    el.style.removeProperty("filter");
-    // DO NOT clear opacity for CTA because CSS locks it to 1 anyway
-    if (!el.classList.contains("anim-cta")) el.style.removeProperty("opacity");
+  // Set initial states explicitly to ensure they are hidden before animation starts
+  if (screenEl) anime.set(screenEl, { opacity: 0, translateY: 20 });
+  if (letters.length) anime.set(letters, { opacity: 0 }); // Start neutral pos, hidden
+  if (heroSub.length) anime.set(heroSub, { opacity: 0, translateY: 15 });
+  if (cta.length) anime.set(cta, { opacity: 0, translateY: 20, scale: 0.9 });
+  if (cards.length) anime.set(cards, { opacity: 0, translateY: 30 });
+
+  const tl = anime.timeline({
+    easing: "easeOutExpo",
+    duration: 850,
   });
 
-  const tl = anime.timeline({ autoplay: true });
-
+  // 1. Screen fade in
   if (screenEl) {
     tl.add({
       targets: screenEl,
       opacity: [0, 1],
-      translateY: [14, 0],
-      duration: 380,
-      easing: "easeOutCubic",
+      translateY: [20, 0],
+      duration: 600,
+      easing: "easeOutQuad",
     });
   }
 
-  // Title/Sub fade in (fine)
-  tl.add(
-    {
-      targets: [...heroTitle, ...heroSub],
-      opacity: [0, 1],
-      translateY: [18, 0],
-      delay: anime.stagger(110),
-      duration: 650,
-      easing: "easeOutExpo",
-    },
-    40
-  );
-
-  // CTA: move/scale only (NO opacity)
-  tl.add(
-    {
-      targets: cta,
-      translateY: [18, 0],
-      scale: [0.98, 1],
-      duration: 520,
-      easing: "easeOutExpo",
-    },
-    120
-  );
-
-  if (cards.length) {
-    tl.add(
-      {
-        targets: cards,
-        opacity: [0, 1],
-        translateY: [16, 0],
-        delay: anime.stagger(100),
-        duration: 560,
-        easing: "easeOutQuad",
+  // 2. Letters (Jump & Bounce style)
+  if (letters.length) {
+    tl.add({
+      targets: letters,
+      opacity: { value: [0, 1], duration: 100 },
+      translateY: [
+        { value: -20, duration: 400, easing: 'easeOutCubic' }, // Jump up
+        { value: 0, duration: 800, easing: 'easeOutBounce' }   // Bounce down
+      ],
+      rotate: {
+        value: [-15, 0], // Subtle rotation
+        duration: 1000,
+        easing: 'easeOutElastic(1, .8)'
       },
-      70
-    );
+      delay: anime.stagger(40),
+    }, "-=400");
+  }
+
+  // 3. Subtitle
+  if (heroSub.length) {
+    tl.add({
+      targets: heroSub,
+      opacity: [0, 1],
+      translateY: [15, 0],
+      duration: 600,
+    }, "-=600");
+  }
+
+  // 4. CTA
+  if (cta.length) {
+    tl.add({
+      targets: cta,
+      opacity: [0, 1],
+      translateY: [20, 0],
+      scale: [0.9, 1],
+      duration: 600,
+    }, "-=500");
+  }
+
+  // 5. Cards
+  if (cards.length) {
+    tl.add({
+      targets: cards,
+      opacity: [0, 1],
+      translateY: [30, 0],
+      delay: anime.stagger(100),
+      duration: 700,
+    }, "-=600");
   }
 
   return () => {
-    tl.pause();
     anime.remove(targets);
   };
 }, [screen, prefersReduced]);
@@ -376,72 +439,23 @@ useEffect(() => {
     };
   }, []);
 
+  // Removed complex logo timeline for cleaner entry
   useEffect(() => {
-  if (screen !== "landing") return;
-  if (prefersReduced) return;
+    if (screen !== "landing") return;
+    const root = rootRef.current;
+    if (!root) return;
 
-  const root = rootRef.current;
-  if (!root) return;
-
-  const logo = root.querySelector(".logoImg");
-  const stage = root.querySelector(".logoStage");
-  const content = root.querySelector(".landingContent");
-
-  if (!logo || !stage || !content) return;
-
-  // reset (prevents “stuck” states on fast navigation)
-  anime.remove([logo, content, stage]);
-  logo.style.opacity = "0";
-  content.style.opacity = "0";
-
-  const tl = anime.timeline({ autoplay: true });
-
-  // drop-in
-  tl.add({
-    targets: logo,
-    opacity: [0, 1],
-    translateY: [-40, 0],
-    scale: [0.9, 1],
-    rotate: [-6, 0],
-    duration: 900,
-    easing: "easeOutElastic(1, .6)",
-  });
-
-  // move to top-left corner
-  tl.add({
-    targets: logo,
-    translateX: [0, -((window.innerWidth / 2) - 70)],  // tweak "70" for padding
-    translateY: [0, -((window.innerHeight / 2) - 70)],
-    scale: [1, 0.78],
-    duration: 750,
-    easing: "easeInOutCubic",
-  }, "+=120");
-
-  // reveal landing content
-  tl.add({
-    targets: content,
-    opacity: [0, 1],
-    duration: 450,
-    easing: "easeOutQuad",
-  }, "-=250");
-
-  // optionally fade the stage away so it stops covering layout
-  tl.add({
-    targets: stage,
-    opacity: [1, 0],
-    duration: 300,
-    easing: "easeOutQuad",
-    complete: () => {
-      stage.style.display = "none";
-    },
-  }, "-=200");
-
-  return () => {
-    anime.remove([logo, content, stage]);
-    stage.style.display = ""; // restore if you come back later
-    stage.style.opacity = "";
-  };
-}, [screen, prefersReduced]);
+    // Optional: simple fade-in if needed, but CSS handles most now
+    const content = root.querySelector(".landingContent");
+    if (content) {
+      anime({
+        targets: content,
+        opacity: [0, 1],
+        duration: 800,
+        easing: "easeOutQuad"
+      });
+    }
+  }, [screen]);
 
   // ---------- Interaction helpers ----------
   function pressPop(e) {
@@ -489,6 +503,7 @@ useEffect(() => {
   // ---------- Background FX markup ----------
   const BackgroundFX = (
     <div className="bgFX" aria-hidden="true">
+      <div className="cursorFollower" />
       <div className="bgOrb orb1" />
       <div className="bgOrb orb2" />
       <div className="bgGrid" />
@@ -507,7 +522,6 @@ useEffect(() => {
     setOutputUrl(null);
     setAgentReply("");
 
-    startFakeProgress();
     const startedAt = Date.now();
 
     try {
@@ -524,67 +538,40 @@ useEffect(() => {
         signal: abortRef.current.signal,
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        // Try to parse JSON error response first
-        let errorData = null;
-        try {
-          errorData = await res.json();
-        } catch {
-          const txt = await res.text().catch(() => "");
-          throw new Error(`Backend error (${res.status}): ${txt || res.statusText}`);
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
+
+        // If backend returned an agent reply, show it.
+        if (data && (data.reply || data.error)) {
+          setAgentReply(data.reply || "");
+          setError(data.error || "Could not process your request");
+        } else {
+          setError(`Backend error (${res.status})`);
         }
 
-        // If we got a JSON error response with AI reply, handle it specially
-        if (errorData && errorData.reply) {
-          const elapsed = Date.now() - startedAt;
-          if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
-
-          stopProgressTimer();
-          setProgress(100);
-          setStepText("Error");
-
-          setAgentReply(errorData.reply);
-          setError(errorData.error || "Could not process your request");
-          setStatus("error");
-          setScreen("result");
-          return;
-        }
-
-        // Otherwise throw normal error
-        throw new Error(`Backend error (${res.status}): ${errorData?.error || res.statusText}`);
+        setStatus("error");
+        setScreen("result");
+        return;
       }
 
-      const data = await res.json();
-      setSessionId(data.session_id || sessionId);
-      setAgentReply(data.reply || "");
+      // success
+      setSessionId(data?.session_id || sessionId);
+      setAgentReply(data?.reply || "");
 
-      // Get output audio URL from backend response
       let outputFileUrl = null;
-      if (data.output_audio_path) {
-        // If it's just a filename, construct full URL
-        const filename = data.output_audio_path.split(/[/\\]/).pop();
+      if (data?.output_audio_path) {
+        const filename = String(data.output_audio_path).split(/[/\\]/).pop();
         outputFileUrl = `/uploads/${filename}`;
       }
-
-      // Log debug info to console
-      console.log("Backend response:", {
-        session_id: data.session_id,
-        output_audio_path: data.output_audio_path,
-        outputFileUrl,
-        known_effects: data.known_effects,
-        audio_engine_ran: data.audio_engine?.ran,
-        generated_code: data.downstream?.generated_code
-      });
 
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
 
-      stopProgressTimer();
-      setProgress(100);
-      setStepText("Done!");
-
       setOutputUrl(outputFileUrl);
-      setMessage(outputFileUrl ? "Done! Your edited audio is ready." : "Processing complete. See agent reply for details.");
+      setMessage(outputFileUrl ? "Done! Your edited audio is ready." : "Processing complete. See AI assistant reply for details.");
       setStatus("done");
       setScreen("result");
     } catch (err) {
@@ -593,10 +580,8 @@ useEffect(() => {
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
 
-      stopProgressTimer();
       setStatus("error");
       setError(err?.message || "Something went wrong");
-      setStepText("Error");
       setScreen("result");
     } finally {
       abortRef.current = null;
@@ -606,19 +591,22 @@ useEffect(() => {
   // ---------- UI ----------
   if (screen === "landing") {
     return (
-      <div className="page" ref={rootRef}>
+      <div className="page" ref={rootRef} key="landing">
         {BackgroundFX}
-          <div className="logoStage" aria-hidden="true">
-            <img className="logoImg" src={logoUrl} alt="" />
-        </div>
         <div className="screen anim-screen landingContent">
           <div className="landingWrap">
             <div className="landingInner">
-              <h2 className="heroTitle anim-heroTitle">Edit audio using plain English.</h2>
+              <img className="logoImg" src={logoUrl} alt="Scotty Logo" style={{ opacity: 1, position: 'relative', width: 140, height: 140, marginBottom: -10 }} />
+
+              {/* Enhanced animated title */}
+              <SplitText
+                text="Edit audio using plain English."
+                className="heroTitle"
+              />
 
               <p className="heroSub anim-heroSub">
-                #1 tool for creators: clean speech for reels/podcasts, quick master for music demos, and other simple edits
-                with no need for music editing knowledge.
+                The #1 tool for creators: clean speech for reels/podcasts, quick master for music demos, and other simple edits
+                without needing complex software.
               </p>
 
               <button
@@ -642,14 +630,17 @@ useEffect(() => {
 
   if (screen === "input") {
     return (
-      <div className="page" ref={rootRef}>
+      <div className="page" ref={rootRef} key="input">
         {BackgroundFX}
 
         <div className="screen anim-screen">
           <div className="editorPage">
             <div className="editorWrap">
               <div className="hero heroCompact">
-                <h2 className="heroTitle anim-heroTitle">Upload audio and describe the edit.</h2>
+                <SplitText
+                  text="Upload audio and describe the edit."
+                  className="heroTitle"
+                />
               </div>
 
               <div className="grid oneCol">
@@ -682,7 +673,7 @@ useEffect(() => {
 
                       {/* BIG “physical file” card drops in here */}
                       <div className="fileDropCard fxRing" ref={fileCardRef} style={{ display: "none" }}>
-                        <AudioFileIcon />
+                        <AudioFileIcon key={file?.name || "audio-icon"} />
                         <div className="fileDropText">
                           <div className="fileDropTop">Audio file loaded</div>
                           <div className="fileDropName">{file?.name || ""}</div>
@@ -767,7 +758,7 @@ useEffect(() => {
 
   if (screen === "progress") {
     return (
-      <div className="page" ref={rootRef}>
+      <div className="page" ref={rootRef} key="progress">
         {BackgroundFX}
 
         <div className="screen anim-screen">
@@ -778,23 +769,13 @@ useEffect(() => {
               </h2>
 
               <p className="heroSub anim-heroSub" style={{ marginBottom: 18 }}>
-                {stepText || "Working…"}
+                {/* No detailed fake steps; just a clean waiting message */}
+                Please wait.
               </p>
 
-              <div className="card anim-card progressCard fxScan">
-                <div className="progressTrack">
-                  <div ref={progressFillRef} className="progressFill" style={{ width: `${progress}%` }} />
-                </div>
-
-                <div className="kv">
-                  <div className="kvRow">
-                    <span>Progress</span>
-                    <span className="code">{progress}%</span>
-                  </div>
-                  <div className="kvRow">
-                    <span>Status</span>
-                    <span className="code">{status}</span>
-                  </div>
+              <div className={`card anim-card progressCard fxScan ${status === "uploading" ? "loadingGlow" : ""}`}>
+                <div className="progressTrack indeterminate">
+                  <div className="progressIndeterminate" />
                 </div>
 
                 <div className="centerRow">
@@ -813,7 +794,7 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <p className="hint">(Progress messages are simulated for demo right now.)</p>
+                <p className="hint">(Waiting for the backend to finish processing.)</p>
               </div>
             </div>
           </div>
@@ -824,78 +805,97 @@ useEffect(() => {
 
   // result
   return (
-    <div className="page">
-      <div className="landingWrap">
-        <div className="landingInner landingInnerNarrow">
-          {status === "done" ? (
-            <>
-              <h2 className="heroTitle">Your edited audio is ready.</h2>
-              <p className="heroSub">{message || "Done!"}</p>
+    <div className="page" ref={rootRef} key="result">
+      {BackgroundFX}
 
-              {agentReply && (
-                <div className="card" style={{ marginTop: 18, marginBottom: 12 }}>
-                  <div className="cardTitle">AI Assistant</div>
-                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{agentReply}</p>
+      <div className="screen anim-screen">
+        <div className="landingWrap">
+          <div className="landingInner landingInnerNarrow">
+            <div className="resultShell resultBlock">
+              <div className="resultHeader">
+                <div className={`badge ${status === "done" ? "ok" : status === "error" ? "err" : ""}`}>
+                  {status === "done" ? "SUCCESS" : status === "error" ? "ERROR" : "STATUS"}
                 </div>
-              )}
 
-              <div className="card" style={{ marginTop: 18 }}>
-                {outputUrl ? (
-                  <>
-                    <audio controls src={outputUrl} className="player" />
-                    <div className="centerRow" style={{ marginTop: 12 }}>
-                      <a className="chip" href={outputUrl} download="edited-audio.wav">
-                        Download edited audio
-                      </a>
-                    </div>
-                  </>
-                ) : (
-                  <p className="hint" style={{ margin: 0 }}>
-                    No output audio generated. See AI assistant reply above.
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="heroTitle">Something went wrong.</h2>
-              <p className="heroSub">{error || "Unknown error"}</p>
+                <h2 className="heroTitle" style={{ marginTop: 10 }}>
+                  {status === "done" ? "Your edited audio is ready." : "Something went wrong."}
+                </h2>
 
-              {agentReply && (
-                <div className="card" style={{ marginTop: 18 }}>
-                  <div className="cardTitle">AI Assistant</div>
-                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{agentReply}</p>
-                </div>
-              )}
-
-              <div className="card" style={{ marginTop: 18 }}>
-                <p className="hint" style={{ margin: 0 }}>
-                  If your backend isn't running yet, this is expected.
+                <p className="heroSub" style={{ marginTop: 8 }}>
+                  {status === "done" ? (message || "Done!") : (error || "Unknown error")}
                 </p>
               </div>
-            </>
-          )}
 
-          <div className="centerRow" style={{ marginTop: 18 }}>
-            <button
-              className="chip"
-              onClick={() => {
-                resetJob({ clearInputs: true });
-                setScreen("input");
-              }}
-            >
-              Process another file
-            </button>
+              <div className="resultBody">
+                {status === "done" ? (
+                  <div className="resultGrid">
+                    <div className="card resultBlock">
+                      <div className="cardTitle">Output</div>
+                      {outputUrl ? (
+                        <>
+                          <audio controls src={outputUrl} className="player" />
+                          <div className="centerRow" style={{ marginTop: 14 }}>
+                            <a className="buttonTiny fxRing" href={outputUrl} download="edited-audio.wav">
+                              Download
+                            </a>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="hint" style={{ margin: 0 }}>
+                          No output audio generated.
+                        </p>
+                      )}
+                    </div>
 
-            <button
-              className="chip"
-              onClick={() => {
-                resetJob({ clearInputs: true });
-                setScreen("landing");
-              }}
-            >
-              Back to landing
-            </button>
+                    <div className="card resultBlock">
+                      <div className="cardTitle">Details</div>
+                      {agentReply ? (
+                        <p className="detailsText">{agentReply}</p>
+                      ) : (
+                        <p className="hint" style={{ margin: 0 }}>
+                          (No assistant message.)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="card resultBlock">
+                    <div className="cardTitle">What happened</div>
+                    <p className="detailsText">
+                      {agentReply || "If your backend isn’t running, this is expected."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="resultActions resultBlock">
+                  <button
+                    className="buttonTiny fxRing"
+                    onMouseDown={pressPop}
+                    onMouseEnter={hoverGlow}
+                    onMouseLeave={hoverGlowOut}
+                    onClick={() => {
+                      resetJob({ clearInputs: true });
+                      setScreen("input");
+                    }}
+                  >
+                    Process another file
+                  </button>
+
+                  <button
+                    className="buttonTiny fxRing"
+                    onMouseDown={pressPop}
+                    onMouseEnter={hoverGlow}
+                    onMouseLeave={hoverGlowOut}
+                    onClick={() => {
+                      resetJob({ clearInputs: true });
+                      setScreen("landing");
+                    }}
+                  >
+                    Back to landing
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
