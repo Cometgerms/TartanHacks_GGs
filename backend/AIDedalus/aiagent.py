@@ -535,7 +535,7 @@ async def dedalus_chat(messages: List[ChatMessage]) -> str:
 
     # Use the client's async chat completion API if available, otherwise raise
     resp = await client.chat.completions.create(  # type: ignore[attr-defined]
-        model=os.getenv("DEDALUS_MODEL", "gpt-4.1-mini"),
+        model=os.getenv("DEDALUS_MODEL", "openai/gpt-5.2"),
         messages=[asdict(m) for m in messages],
         temperature=float(os.getenv("DEDALUS_TEMPERATURE", "0.4")),
         top_p=float(os.getenv("DEDALUS_TOP_P", "0.9")),

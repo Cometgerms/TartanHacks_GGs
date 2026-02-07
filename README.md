@@ -1,110 +1,120 @@
-# TartanHacks — Audio AI Agent (Dedalus-powered)
+# 🎵 TartanHacks — Audio AI Agent (Dedalus)
 
-A TartanHacks project with:
 
-- **Frontend**: React (Vite) + Anime.js + Modern UI
-- **Backend**: Python (Flask) + Dedalus AI + Pedalboard/FFmpeg
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python)
+![React](https://img.shields.io/badge/React-Vite-61DAFB?style=for-the-badge&logo=react)
+![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-## Team
-
-- Alan
-- Raymond
-- Liam
-- Zack
-
-The agent keeps a chat session, understands effect commands like `\\reverb();`, and can generate a downstream “processing code payload” you can forward to a future processing backend.
+> **A cutting-edge audio processing agent powered by multimodal AI.**  
+> *Built for TartanHacks 2025*
 
 ---
 
-## Features
+## Overview
 
-- Chat-style interaction (**session_id** based)
-- Text + optional audio input
+This project leverages **Dedalus multimodal AI** to interpret user intent (via text or image) and intelligently modify audio files using **Pedalboard** and **FFmpeg**.
+
+- **Frontend**: React (Vite) + Anime.js for a fluid, interactive UI.
+- **Backend**: Flask + AI Agent logic for dynamic audio processing chains.
+
 ---
 
-## Project structure (current)
+## 👥 The Team
 
-<!-- live update project structure diagram here -->
+**Alan**
 
-```
-root
-├── backend
-│   ├── AIDedalus
-│   │   ├── aiagent.py        # main agent logic
-│   │   ├── audio_engine.py   # audio processing logic
-│   │   ├── run_server.py     # Main entry point for Flask server
+**Raymond**
+
+**Liam**
+
+**Zack** 
+
+
+---
+
+## ✨ Key Features
+
+-  **Natural Language Control**: Tell the agent "make it sound like a radio from the 50s" and it figures out the DSP chain.
+-  **Multimodal Context**: Upload an image (e.g., a rainy street) to inspire the audio effects.
+-  **Intelligent DSP**: Automatically calls audio processing functions (Reverb, Distortion, EQ) based on interpreted needs.
+-  **Modern UI**: A "fancy," anime.js-powered interface that reacts to your interactions.
+
+---
+
+## 📂 Project Structure
+
+```text
+.
+├── backend/
+│   ├── AIDedalus/
+│   │   ├── aiagent.py         # The brain: Interprets prompts -> Code
+│   │   ├── audio_engine.py    # The muscle: Applies DSP effects
 │   │   ├── pedalboard_worker.py
-│   │   └── test
-│   ├── requirements.txt
-│   └── uploads/              # processed files go here
-├── frontend
-│   ├── src
-│   │   ├── App.jsx           # main React app (Vite)
-│   │   └── App.css           # styles
+│   │   ├── run_server.py      # Flask entry point
+│   │   └── test/
+│   ├── uploads/               # Temporary storage for processing
+│   ├── .env                   # Configuration & Secrets
+│   └── requirements.txt       # Backend dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # React components
+│   │   ├── assets/            # Static assets
+│   │   └── App.jsx            # Main UI Logic
 │   ├── package.json
-│   ├── vite.config.js
-│   └── index.html
-├── README.md  # this file
+│   └── vite.config.js
+└── README.md
 ```
 
 ---
 
-## Prerequisites
+## 🛠️ Getting Started
 
-- **Node.js** 18+ (Vite)
-- **Python** 3.9+ 
-- **FFmpeg** installed and in PATH (required for audio processing)
+### Prerequisites
 
----
+*   **Node.js** (v18+)
+*   **Python** (v3.9+)
+*   **FFmpeg** (Must be installed and added to system PATH)
 
-## Backend setup (Windows)
+###  Backend Setup
 
-1) Configure secrets in `backend/.env` (create if missing):
+1.  **Configure Secrets**: Create `backend/.env` based on the example.
+    ```env
+    API_KEY=YOUR_DEDALUS_KEY
+    UPLOAD_FOLDER=uploads
+    ```
 
-```env
-API_KEY=YOUR_DEDALUS_KEY
-UPLOAD_FOLDER=uploads
-# Optional:
-# DEDALUS_MODEL=gpt-4.1-mini
-```
+2.  **Install Dependencies**:
+    ```bash
+    py -m pip install -r backend/requirements.txt
+    ```
 
-2) Install Python deps:
+3.  **Launch Server**:
+    ```bash
+    py backend/AIDedalus/run_server.py
+    ```
+    *Server runs at `http://localhost:5000`*
 
-```bat
-py -m pip install -r backend\requirements.txt
-```
+### Frontend Setup
 
-3) Run the backend:
-
-```bat
-py backend\AIDedalus\run_server.py
-```
-
-Backend listens on `http://localhost:5000`.
-
----
-
-## Frontend setup (Windows)
-
-```bat
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend typically runs on `http://localhost:5173` (Vite default) and proxies API requests to `http://localhost:5000` via `vite.config.js`.
+1.  **Install & Run**:
+    ```bash
+    cd frontend
+    npm install
+    npm run dev
+    ```
+    *App runs at `http://localhost:5173`*
 
 ---
 
-## Tests / sanity checks
+##  Testing
 
-- Dedalus connectivity test:
+Run the connectivity sanity check to ensure the AI agent is reachable:
 
-```bat
-py backend\AIDedalus\test\chattest.py
+```bash
+py backend/AIDedalus/test/chattest.py
 ```
 
-
-
-
 ---
+
+*Made with ❤️ at TartanHacks 2026*
