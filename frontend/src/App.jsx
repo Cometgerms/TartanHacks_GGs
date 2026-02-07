@@ -680,13 +680,12 @@ useEffect(() => {
 
               {/* Enhanced animated title */}
               <SplitText
-                text="Edit audio using plain English."
+                text="Audifer"
                 className="heroTitle"
               />
 
               <p className="heroSub anim-heroSub">
-                The #1 tool for creators: clean speech for reels/podcasts, quick master for music demos, and other simple edits
-                without needing complex software.
+                 #1 AI Powered Audio Mastering and Processing Tool for Creators
               </p>
 
               <button
