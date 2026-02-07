@@ -6,11 +6,15 @@ export default function App() {
 
   const [prompt, setPrompt] = useState("");
   const [file, setFile] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
 
   const [status, setStatus] = useState("idle"); // idle | uploading | done | error
   const [message, setMessage] = useState("");
   const [outputUrl, setOutputUrl] = useState(null);
   const [error, setError] = useState("");
+  const [agentReply, setAgentReply] = useState("");
+
+  const fileInputRef = useRef(null);
 
   // progress UI
   const [progress, setProgress] = useState(0);
@@ -100,6 +104,7 @@ export default function App() {
     setError("");
     setMessage("");
     setOutputUrl(null);
+    setAgentReply("");
 
     startFakeProgress();
     const startedAt = Date.now();
@@ -109,21 +114,66 @@ export default function App() {
 
       const form = new FormData();
       form.append("audio", file);
-      form.append("prompt", prompt);
+      form.append("text", prompt);
+      form.append("session_id", sessionId || `session_${Date.now()}`);
 
-      const res = await fetch("/api/process", {
+      const res = await fetch("/api/aiagent", {
         method: "POST",
         body: form,
         signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Backend error (${res.status}): ${txt || res.statusText}`);
+        // Try to parse JSON error response first
+        let errorData = null;
+        try {
+          errorData = await res.json();
+        } catch {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Backend error (${res.status}): ${txt || res.statusText}`);
+        }
+
+        // If we got a JSON error response with AI reply, handle it specially
+        if (errorData && errorData.reply) {
+          const elapsed = Date.now() - startedAt;
+          if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
+
+          stopProgressTimer();
+          setProgress(100);
+          setStepText("Error");
+
+          setAgentReply(errorData.reply);
+          setError(errorData.error || "Could not process your request");
+          setStatus("error");
+          setScreen("result");
+          return;
+        }
+
+        // Otherwise throw normal error
+        throw new Error(`Backend error (${res.status}): ${errorData?.error || res.statusText}`);
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const data = await res.json();
+      setSessionId(data.session_id || sessionId);
+      setAgentReply(data.reply || "");
+
+      // Get output audio URL from backend response
+      let outputFileUrl = null;
+      if (data.output_audio_path) {
+        // If it's just a filename, construct full URL
+        const filename = data.output_audio_path.split(/[/\\]/).pop();
+        outputFileUrl = `/uploads/${filename}`;
+      }
+
+      // Log debug info to console
+      console.log("Backend response:", {
+        session_id: data.session_id,
+        output_audio_path: data.output_audio_path,
+        outputFileUrl,
+        known_effects: data.known_effects,
+        audio_engine_ran: data.audio_engine?.ran,
+        generated_code: data.downstream?.generated_code
+      });
 
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_PROGRESS_MS) await sleep(MIN_PROGRESS_MS - elapsed);
@@ -132,8 +182,8 @@ export default function App() {
       setProgress(100);
       setStepText("Done!");
 
-      setOutputUrl(url);
-      setMessage("Done! Your edited audio is ready.");
+      setOutputUrl(outputFileUrl);
+      setMessage(outputFileUrl ? "Done! Your edited audio is ready." : "Processing complete. See agent reply for details.");
       setStatus("done");
       setScreen("result");
     } catch (err) {
@@ -336,8 +386,15 @@ export default function App() {
               <h2 className="heroTitle">Your edited audio is ready.</h2>
               <p className="heroSub">{message || "Done!"}</p>
 
+              {agentReply && (
+                <div className="card" style={{ marginTop: 18, marginBottom: 12 }}>
+                  <div className="cardTitle">AI Assistant</div>
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{agentReply}</p>
+                </div>
+              )}
+
               <div className="card" style={{ marginTop: 18 }}>
-                {outputUrl && (
+                {outputUrl ? (
                   <>
                     <audio controls src={outputUrl} className="player" />
                     <div className="centerRow" style={{ marginTop: 12 }}>
@@ -346,6 +403,10 @@ export default function App() {
                       </a>
                     </div>
                   </>
+                ) : (
+                  <p className="hint" style={{ margin: 0 }}>
+                    No output audio generated. See AI assistant reply above.
+                  </p>
                 )}
               </div>
             </>
@@ -354,9 +415,16 @@ export default function App() {
               <h2 className="heroTitle">Something went wrong.</h2>
               <p className="heroSub">{error || "Unknown error"}</p>
 
+              {agentReply && (
+                <div className="card" style={{ marginTop: 18 }}>
+                  <div className="cardTitle">AI Assistant</div>
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{agentReply}</p>
+                </div>
+              )}
+
               <div className="card" style={{ marginTop: 18 }}>
                 <p className="hint" style={{ margin: 0 }}>
-                  If your backend isn’t running yet, this is expected.
+                  If your backend isn't running yet, this is expected.
                 </p>
               </div>
             </>
