@@ -2,8 +2,8 @@
 
 A TartanHacks project with:
 
-- **Frontend**: 
-- **Backend**: 
+- **Frontend**: React (Vite) + Anime.js + Modern UI
+- **Backend**: Python (Flask) + Dedalus AI + Pedalboard/FFmpeg
 
 ## Team
 
@@ -20,29 +20,30 @@ The agent keeps a chat session, understands effect commands like `\\reverb();`, 
 
 - Chat-style interaction (**session_id** based)
 - Text + optional audio input
-- Effect command parsing: e.g. `\\distortion(); \\reverb();`
 ---
 
 ## Project structure (current)
 
-[//]: # (live update project structure diagram here)
+<!-- live update project structure diagram here -->
 
 ```
 root
 ├── backend
 │   ├── AIDedalus
-│   │   ├── aiagent.py  # main Flask app
-│   │   ├── smoke_test.py  # backend logic test (no server)
+│   │   ├── aiagent.py        # main agent logic
+│   │   ├── audio_engine.py   # audio processing logic
+│   │   ├── run_server.py     # Main entry point for Flask server
+│   │   ├── pedalboard_worker.py
 │   │   └── test
-│   │       └── chattest.py  # Dedalus connectivity test
 │   ├── requirements.txt
-│   └── .env  # not included in repo, configure with your API key
+│   └── uploads/              # processed files go here
 ├── frontend
 │   ├── src
-│   │   ├── App.js  # main React app
-│   │   └── ... other React components
+│   │   ├── App.jsx           # main React app (Vite)
+│   │   └── App.css           # styles
 │   ├── package.json
-│   └── ... other CRA files
+│   ├── vite.config.js
+│   └── index.html
 ├── README.md  # this file
 ```
 
@@ -50,23 +51,21 @@ root
 
 ## Prerequisites
 
-- **Node.js** 16+ (works with CRA / react-scripts)
-- **Python** 3.9+ recommended
-
-[//]: # (> Note: The current agent backend does not require ffmpeg because it does not do waveform processing itself yet.)
+- **Node.js** 18+ (Vite)
+- **Python** 3.9+ 
+- **FFmpeg** installed and in PATH (required for audio processing)
 
 ---
 
 ## Backend setup (Windows)
 
-1) Configure secrets in `backend/.env`:
+1) Configure secrets in `backend/.env` (create if missing):
 
 ```env
 API_KEY=YOUR_DEDALUS_KEY
 UPLOAD_FOLDER=uploads
 # Optional:
 # DEDALUS_MODEL=gpt-4.1-mini
-# AGENT_SYSTEM_PROMPT=...
 ```
 
 2) Install Python deps:
@@ -78,19 +77,10 @@ py -m pip install -r backend\requirements.txt
 3) Run the backend:
 
 ```bat
-py backend\AIDedalus\aiagent.py
+py backend\AIDedalus\run_server.py
 ```
 
 Backend listens on `http://localhost:5000`.
-
-[//]: # (### Useful endpoints)
-
-[//]: # ()
-[//]: # (- `GET /health` — shows whether Dedalus is available + API key configured)
-
-[//]: # (- `POST /chat` — JSON chat endpoint)
-
-[//]: # (- `POST /aiagent` — multipart form endpoint &#40;text + optional audio&#41;)
 
 ---
 
@@ -99,27 +89,22 @@ Backend listens on `http://localhost:5000`.
 ```bat
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
-Frontend runs on `http://localhost:3000` and proxies API requests to `http://localhost:5000` (see `frontend/package.json`).
+Frontend typically runs on `http://localhost:5173` (Vite default) and proxies API requests to `http://localhost:5000` via `vite.config.js`.
 
 ---
 
 ## Tests / sanity checks
 
-- Dedalus connectivity test (modified from Dedalus website; requires `API_KEY` and internet):
+- Dedalus connectivity test:
 
 ```bat
 py backend\AIDedalus\test\chattest.py
 ```
 
 
-- Backend smoke test (no running server required):
-
-```bat
-py backend\AIDedalus\smoke_test.py
-```
 
 
 ---
