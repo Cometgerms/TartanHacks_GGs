@@ -1,161 +1,118 @@
-# TartanHacks_GGs - Audio Processing Application
+# TartanHacks — Audio AI Agent (Dedalus-powered)
 
-An audio processing web application with a Node.js frontend and Python backend.
+A TartanHacks project with:
 
-## 🎵 Features
+- **Frontend**: 
+- **Backend**: 
 
-- **Upload Audio Files**: Support for multiple audio formats (WAV, MP3, OGG, FLAC, M4A)
-- **Audio Information**: Extract detailed information about audio files
-- **Audio Processing**: 
-  - Normalize audio volume
-  - Trim audio clips
-  - Adjust playback speed
-  - Modify volume levels
-- **Download Results**: Download processed audio files
+The agent keeps a chat session, understands effect commands like `\\reverb();`, and can generate a downstream “processing code payload” you can forward to a future processing backend.
 
-## 🏗️ Architecture
+---
 
-- **Frontend**: React (Node.js)
-  - Modern, responsive UI
-  - Real-time processing feedback
-  - File upload and download
-  
-- **Backend**: Flask (Python)
-  - RESTful API
-  - Audio processing with pydub
-  - CORS enabled for cross-origin requests
+## Features
 
-## 🚀 Quick Start
+- Chat-style interaction (**session_id** based)
+- Text + optional audio input
+- Effect command parsing: e.g. `\\distortion(); \\reverb();`
+---
 
-### Prerequisites
+## Project structure (current)
 
-- Node.js (v14 or higher)
-- Python 3.8 or higher
-- ffmpeg (required for audio processing)
+[//]: # (live update project structure diagram here)
 
-### Backend Setup
-
-1. Navigate to the backend directory:
-```bash
-cd backend
+```
+root
+├── backend
+│   ├── AIDedalus
+│   │   ├── aiagent.py  # main Flask app
+│   │   ├── smoke_test.py  # backend logic test (no server)
+│   │   └── test
+│   │       └── chattest.py  # Dedalus connectivity test
+│   ├── requirements.txt
+│   └── .env  # not included in repo, configure with your API key
+├── frontend
+│   ├── src
+│   │   ├── App.js  # main React app
+│   │   └── ... other React components
+│   ├── package.json
+│   └── ... other CRA files
+├── README.md  # this file
 ```
 
-2. Install Python dependencies:
-```bash
-pip install -r requirements.txt
+---
+
+## Prerequisites
+
+- **Node.js** 16+ (works with CRA / react-scripts)
+- **Python** 3.9+ recommended
+
+[//]: # (> Note: The current agent backend does not require ffmpeg because it does not do waveform processing itself yet.)
+
+---
+
+## Backend setup (Windows)
+
+1) Configure secrets in `backend/.env`:
+
+```env
+API_KEY=YOUR_DEDALUS_KEY
+UPLOAD_FOLDER=uploads
+# Optional:
+# DEDALUS_MODEL=gpt-4.1-mini
+# AGENT_SYSTEM_PROMPT=...
 ```
 
-3. Install ffmpeg:
-```bash
-# Ubuntu/Debian
-sudo apt-get install ffmpeg
+2) Install Python deps:
 
-# macOS
-brew install ffmpeg
+```bat
+py -m pip install -r backend\requirements.txt
 ```
 
-4. Start the backend server:
-```bash
-python app.py
+3) Run the backend:
+
+```bat
+py backend\AIDedalus\aiagent.py
 ```
 
-The backend will run on `http://localhost:5000`
+Backend listens on `http://localhost:5000`.
 
-### Frontend Setup
+[//]: # (### Useful endpoints)
 
-1. Navigate to the frontend directory:
-```bash
+[//]: # ()
+[//]: # (- `GET /health` — shows whether Dedalus is available + API key configured)
+
+[//]: # (- `POST /chat` — JSON chat endpoint)
+
+[//]: # (- `POST /aiagent` — multipart form endpoint &#40;text + optional audio&#41;)
+
+---
+
+## Frontend setup (Windows)
+
+```bat
 cd frontend
-```
-
-2. Install Node.js dependencies:
-```bash
 npm install
-```
-
-3. Start the development server:
-```bash
 npm start
 ```
 
-The frontend will open at `http://localhost:3000`
+Frontend runs on `http://localhost:3000` and proxies API requests to `http://localhost:5000` (see `frontend/package.json`).
 
-## 📁 Project Structure
+---
 
-```
-TartanHacks_GGs/
-├── backend/                 # Python Flask backend
-│   ├── app.py              # Main Flask application
-│   ├── audio_processor.py  # Audio processing logic
-│   ├── requirements.txt    # Python dependencies
-│   └── README.md           # Backend documentation
-│
-├── frontend/               # Node.js React frontend
-│   ├── public/            # Static files
-│   ├── src/               # React source code
-│   │   ├── components/    # React components
-│   │   ├── services/      # API services
-│   │   ├── App.js         # Main app component
-│   │   └── index.js       # Entry point
-│   ├── package.json       # Node.js dependencies
-│   └── README.md          # Frontend documentation
-│
-└── README.md              # This file
+## Tests / sanity checks
+
+- Dedalus connectivity test (modified from Dedalus website; requires `API_KEY` and internet):
+
+```bat
+py backend\AIDedalus\test\chattest.py
 ```
 
-## 🔧 API Endpoints
 
-### Health Check
-- `GET /` - Check if the server is running
+- Backend smoke test (no running server required):
 
-### File Operations
-- `POST /api/upload` - Upload an audio file
-- `GET /api/files` - List all uploaded and processed files
-- `GET /api/download/<filename>` - Download a processed file
+```bat
+py backend\AIDedalus\smoke_test.py
+```
 
-### Audio Processing
-- `POST /api/process` - Process an audio file
-  - Operations: `info`, `normalize`, `trim`
 
-## 🎨 Usage
-
-1. **Upload an Audio File**
-   - Click "Choose Audio File" and select your audio file
-   - Click "Upload" to send it to the server
-
-2. **Process the Audio**
-   - Select an operation (Get Info, Normalize, or Trim)
-   - For trimming, specify start and end times in seconds
-   - Click "Process" to apply the operation
-
-3. **Download Processed File**
-   - After processing, click "Download Processed File" to save the result
-
-## 🛠️ Technologies Used
-
-### Frontend
-- React 18
-- Axios for API calls
-- CSS3 for styling
-
-### Backend
-- Flask 3.0
-- Flask-CORS for cross-origin support
-- Pydub for audio processing
-- FFmpeg for audio format support
-
-## 📝 Development
-
-### Adding New Audio Operations
-
-1. Add the processing logic in `backend/audio_processor.py`
-2. Add the API endpoint in `backend/app.py`
-3. Update the frontend components to support the new operation
-
-## 🤝 Contributing
-
-This is a TartanHacks project for team GGs.
-
-## 📄 License
-
-ISC License
+---
