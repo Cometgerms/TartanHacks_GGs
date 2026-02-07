@@ -142,10 +142,63 @@ def get_or_create_session(session_id: Optional[str]) -> str:
     return sid
 
 
-async def dedalus_chat(messages: List[ChatMessage]) -> str:
-    """If Dedalus SDK is available, call it. Otherwise, fallback to a deterministic response."""
+import atexit
+import inspect
+
+
+_DEDALUS_CLIENT = None
+
+
+def _get_dedalus_client():
+    global _DEDALUS_CLIENT
     if AsyncDedalus is None or not API_KEY:
-        last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
+        return None
+    if _DEDALUS_CLIENT is None:
+        _DEDALUS_CLIENT = AsyncDedalus(api_key=API_KEY)  # type: ignore
+    return _DEDALUS_CLIENT
+
+
+async def _close_dedalus_client() -> None:
+    """Best-effort cleanup to avoid Proactor warnings on Windows."""
+    global _DEDALUS_CLIENT
+    client = _DEDALUS_CLIENT
+    _DEDALUS_CLIENT = None
+    if client is None:
+        return
+
+    aclose = getattr(client, "aclose", None)
+    if callable(aclose):
+        maybe = aclose()
+        if inspect.isawaitable(maybe):
+            await maybe
+
+    inner = getattr(client, "client", None) or getattr(client, "_client", None)
+    inner_aclose = getattr(inner, "aclose", None)
+    if callable(inner_aclose):
+        maybe = inner_aclose()
+        if inspect.isawaitable(maybe):
+            await maybe
+
+
+def _close_dedalus_client_sync() -> None:
+    try:
+        asyncio.run(_close_dedalus_client())
+    except Exception:
+        # Don't crash on interpreter shutdown; this is best-effort.
+        pass
+
+
+atexit.register(_close_dedalus_client_sync)
+
+
+async def dedalus_chat(messages: List[ChatMessage]) -> str:
+    """If Dedalus SDK is available, call it. Otherwise, fallback to a deterministic response.
+
+    Also falls back when the Dedalus API is temporarily unreachable.
+    """
+    last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
+
+    if AsyncDedalus is None or not API_KEY:
         return (
             "Hi! I'm your audio-processing assistant. Tell me what you want to change, "
             "and optionally upload an audio file. "
@@ -153,12 +206,25 @@ async def dedalus_chat(messages: List[ChatMessage]) -> str:
             f"You said: {last_user}"
         )
 
-    client = AsyncDedalus(api_key=API_KEY)  # type: ignore
-    resp = await client.chat.completions.create(  # type: ignore[attr-defined]
-        model=os.getenv("DEDALUS_MODEL", "gpt-4.1-mini"),
-        messages=[asdict(m) for m in messages],  # type: ignore[arg-type]
-    )
-    return resp.choices[0].message.content  # type: ignore[index]
+    client = _get_dedalus_client()
+    if client is None:
+        return "Hi! I'm your audio-processing assistant. How can I help with your audio today?"
+
+    try:
+        resp = await client.chat.completions.create(  # type: ignore[attr-defined]
+            model=os.getenv("DEDALUS_MODEL", "gpt-4.1-mini"),
+            messages=[asdict(m) for m in messages],  # type: ignore[arg-type]
+        )
+        return resp.choices[0].message.content  # type: ignore[index]
+    except Exception:
+        # Don't fail the whole API on network/provider issues.
+        # Provide a lightweight, deterministic fallback.
+        return (
+            "I'm having trouble reaching the AI service right now, but I can still help. "
+            "Please tell me what effect(s) you want (e.g., `\\reverb();`, `\\distortion();`) "
+            "and upload an audio file if you want me to generate a processing payload.\n"
+            f"You said: {last_user}"
+        )
 
 
 async def generate_assistant_reply(session_id: str, user_text: str, extra_context: Optional[str] = None) -> str:
